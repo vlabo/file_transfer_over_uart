@@ -39,7 +39,7 @@ sudo reboot
 
 ### Connect UART1 with UART2
 
-Connect the for pins on the board  
+Connect the four pins on the board  
 Pin 24 -> Pin 22  
 Pin 26 -> Pin 21  
 
