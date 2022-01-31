@@ -1,4 +1,4 @@
-# file_transfer_over_uart
+# File transfer over uart
 
 ## Login
 Login with **ssh** to your beaglebone (example: ssh debian@192.168.7.2)
