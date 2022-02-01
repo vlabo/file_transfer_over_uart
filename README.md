@@ -5,7 +5,7 @@ Login with **ssh** to your beaglebone (example: ssh debian@192.168.7.2)
 
 ## Clone
 ```sh
-git clone git@github.com:vlabo/file_transfer_over_uart.git
+git clone https://github.com/vlabo/file_transfer_over_uart.git
 ```
 
 ## Build
