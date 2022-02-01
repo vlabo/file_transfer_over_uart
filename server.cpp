@@ -1,90 +1,80 @@
 #include "common.h"
-#include <rc/uart.h>
 
 #include <thread>
 
+#include <netdb.h>
+#include <netinet/in.h>
 
-void read_message(int bus)
+
+void read_message(int sockID)
 {
 	int len = 0;
-	int r_size = rc_uart_read_bytes(bus,(uint8_t*) &len, sizeof(len));
+	int r_size = recv(sockID, &len, sizeof(len), 0);
 	if(r_size < sizeof(len)) {
 		return;
 	}
 
 	char *data = new char[len];
 
-	rc_uart_read_bytes(bus,(uint8_t*) data, len);
+	recv(sockID, data, len, 0);
 
 	std::cout << "Message: " << data << std::endl;
 
 	delete [] data;
 }
 
-void read_file(int bus)
+void read_file(int sockID)
 {
 	int len = 0;
-	int r_size = rc_uart_read_bytes(bus,(uint8_t*) &len, sizeof(len));
+	int r_size = recv(sockID, &len, sizeof(len), 0);
 	if(r_size < sizeof(len)) {
 		return;
 	}
 
 	char *filename = new char[len];
 
-	rc_uart_read_bytes(bus,(uint8_t*) filename, len);
+	recv(sockID, filename, len, 0);
 
 	std::ofstream file(filename, std::ios::binary);
 
 	int file_length = 0;
-	rc_uart_read_bytes(bus, (uint8_t*) &file_length, sizeof(file_length));
+	recv(sockID, &file_length, sizeof(file_length), 0);
 
 	uint8_t *content = new uint8_t[file_length];
-	rc_uart_read_bytes(bus, content, file_length);
+	recv(sockID, content, file_length, 0);
 
 	file.write((const char*)content, file_length);
 
-	std::cout << "File recived: " << filename << std::endl;
+	std::cout << "File received: " << filename << std::endl;
 
 	delete [] filename;
 	delete [] content;
 }
 
-void revice(int bus)
+void revice(int sockID)
 {
 	while(true)
 	{
 		int command = 0;
-		int r_size = rc_uart_read_bytes(bus, (uint8_t*)&command, sizeof(command));
+		int r_size = recv(sockID, &command, sizeof(command), 0);
 		if(r_size < sizeof(command)) {
 			continue;
 		}
 
 		if((Command)command == Command::MESSAGE)
 		{
-			read_message(bus);
+			read_message(sockID);
 		}
 		else if((Command)command == Command::FILE)
 		{
-			read_file(bus);
+			read_file(sockID);
 		}
 	}
 }
 
-
-int main(int argc, char** args)
+void sending(int sockID)
 {
-	if(argc != 2)
-	{
-		return -1;
-	}
-
-	int bus = std::atoi(args[1]);
-
-	rc_uart_init(bus, 9600, 1, 0, 1, 0);
-
-	std::thread t(revice, bus);
-	
-	while(true)
+    while(true)
 	{
 		std::ifstream pipe("server_pipe");
 
@@ -92,16 +82,15 @@ int main(int argc, char** args)
 		{
 			Request request;
 			pipe >> request;
-			
 
 			if(request.command == Command::MESSAGE)
 			{
 				std::cout << "Message: " << request.data << std::endl;
 
-				rc_uart_write(bus, (uint8_t*)&request.command, sizeof(request.command));
+                send(sockID, &request.command, sizeof(request.command), 0);
 				int len = std::strlen(request.data) + 1;
-				rc_uart_write(bus, (uint8_t*)&len, sizeof(len));
-				rc_uart_write(bus, (uint8_t*)request.data, len);
+                send(sockID, &len, sizeof(len), 0);
+				send(sockID, request.data, len, 0);
 
 			}
 			else if(request.command == Command::FILE)
@@ -118,13 +107,13 @@ int main(int argc, char** args)
 					char * buffer = new char[length];
 					file.read(buffer, length);
 
-					rc_uart_write(bus, (uint8_t*)&request.command, sizeof(request.command));
+					send(sockID, &request.command, sizeof(request.command), 0);
 					int len = std::strlen(request.data) + 1;
-					rc_uart_write(bus, (uint8_t*)&len, sizeof(len));
-					rc_uart_write(bus, (uint8_t*)request.data, len);
+					send(sockID, &len, sizeof(len), 0);
+					send(sockID, request.data, len, 0);
 
-					rc_uart_write(bus, (uint8_t*)&length, sizeof(length));
-					rc_uart_write(bus, (uint8_t*)buffer, length);
+					send(sockID, &length, sizeof(length), 0);
+					send(sockID, buffer, length, 0);
 
 					delete [] buffer;
 				}
@@ -132,5 +121,60 @@ int main(int argc, char** args)
 		}
 	}
 
-	rc_uart_close(bus);
+}
+
+int main(int argc, char** args)
+{
+	if(argc < 2)
+	{
+		return -1;
+	}
+
+    int sockID = 0;
+
+    // server
+    if(std::strcmp(args[1], "-l") == 0)
+    {
+        socklen_t addr_size;
+
+        int listener = socket(PF_INET, SOCK_STREAM, 0);
+
+        sockaddr_in serverAddr;
+        serverAddr.sin_family = AF_INET;
+        serverAddr.sin_port = htons(5588);
+        serverAddr.sin_addr.s_addr = INADDR_ANY;
+
+        bind(listener, (struct sockaddr *) &serverAddr, sizeof(serverAddr));
+
+        if(listen(listener, 1) != 0)
+        {
+            return -1;
+        }
+        std::cout << "listining" << std::endl;
+        sockaddr_in cliAddr;
+        socklen_t len = sizeof(cliAddr);
+        sockID = accept(listener, (struct sockaddr *) &cliAddr, &len);
+
+        std::cout << "Connection accepted" << std::endl;
+    }
+
+    // client
+    if(std::strcmp(args[1], "-c") == 0)
+    {
+        hostent *host = gethostbyname(args[2]);
+
+        sockID = socket(AF_INET, SOCK_STREAM, 0);
+        // server address
+        sockaddr_in serverAddress;
+        serverAddress.sin_family = AF_INET;
+        serverAddress.sin_port = htons(5588);
+        std::memcpy(&serverAddress.sin_addr.s_addr, host->h_addr, host->h_length);
+
+        connect(sockID, (struct sockaddr *)&serverAddress, sizeof(serverAddress));
+    }
+    std::thread r(revice, sockID);
+    std::thread s(sending, sockID);
+
+    r.join();
+    s.join();
 }

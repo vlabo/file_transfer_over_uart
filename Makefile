@@ -1,7 +1,7 @@
 all: server client device1 device2
 
 server: server.cpp
-	g++ server.cpp -o server -lrobotcontrol -lpthread
+	g++ server.cpp -o server -lpthread
 
 client: client.cpp
 	g++ client.cpp -o client
