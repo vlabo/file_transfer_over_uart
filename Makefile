@@ -1,10 +1,10 @@
-all: server client device1 device2
+all: server client
 
 server: server.cpp
-	g++ server.cpp -o server -lpthread
+	g++ server.cpp -g -o server -lpthread
 
 client: client.cpp
-	g++ client.cpp -o client
+	g++ client.cpp -g -o client
 
 device1: server client
 	mkdir -p device1
