@@ -1,4 +1,4 @@
-# File transfer over uart
+# File transfer over uart (Example for C/C++ course)
 
 ## Login
 Login with **ssh** to your beaglebone (example: ssh debian@192.168.7.2)
